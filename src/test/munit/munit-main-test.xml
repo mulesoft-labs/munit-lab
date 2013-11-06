@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.4.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:mock="http://www.mulesoft.org/schema/mule/mock"
+	xsi:schemaLocation="
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+		http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/mock http://www.mulesoft.org/schema/mule/mock/current/mule-mock.xsd
+        http://www.mulesoft.org/schema/mule/mock http://www.mulesoft.org/schema/mule/mock/current/mule-mock.xsd">
+
+	<munit:config />
+	
+	<spring:beans>
+		<!-- Production mule configuration -->
+		<spring:import resource="munit-lab.xml" />
+	</spring:beans>
+
+	<munit:before-test name="configureMocks" description="Set up mocks">
+
+		<!-- Mock outbound endpoints -->
+		<mock:outbound-endpoint address="http://localhost:8082" returnPayload-ref="#[string:MOCKED OUTBOUND]">
+            <mock:assertions>
+                <munit:assert-that payloadIs-ref="#['other payload']"/>
+            </mock:assertions>
+        </mock:outbound-endpoint>
+		<!-- End Mock outbound endpoints -->
+		
+	</munit:before-test>
+
+	<munit:test name="testFirstBranch" description="Test first branch">
+		<!-- Set initial payload / variables -->
+		<munit:set payload-ref="#['/first']">
+			<munit:invocation-properties>
+				<munit:invocation-property key="txId" value-ref="#['TX_123']" />
+			</munit:invocation-properties>
+			<munit:inbound-properties>
+				<munit:inbound-property key="http.method" value-ref="#['GET']" />
+			</munit:inbound-properties>
+		</munit:set>
+		<!-- End Set initial payload / variables -->
+		
+		<!-- Run flow -->
+		<flow-ref name="munit-main" />
+		<!-- End Run flow -->
+		
+		<!-- Assert payload -->
+		<munit:assert-not-null/>
+		<munit:assert-that payloadIs-ref="#['/first FIRST TX_123']"/>
+		<!-- End Assert payload -->
+	</munit:test>	
+
+	<munit:test name="testSecondBranch" description="Test second branch">
+		<!-- Set initial payload / variables -->
+		<munit:set payload-ref="#['/second']">
+			<munit:invocation-properties>
+				<munit:invocation-property key="txId" value-ref="#['TX_123']" />
+			</munit:invocation-properties>
+		</munit:set>
+		<!-- End Set initial payload / variables -->
+		
+		<!-- Spy Assertions -->
+		<mock:spy messageProcessor="scripting:transformer">
+			<mock:assertions-before-call>
+				<munit:assert-that payloadIs-ref="#['/second']"/>
+			</mock:assertions-before-call>
+			<mock:assertions-after-call>
+				<munit:assert-true condition="#[valueOf(payload).is(anyList())]"/>
+				<munit:assert-on-equals value-ref="#[payload[0]]" expected-ref="#[5]"/>
+				<munit:assert-that payloadIs-ref="#[[5, 6, 7, 8]]"/>
+			</mock:assertions-after-call>
+		</mock:spy>
+		<!-- End Spy Assertions -->
+		
+		<!-- Run flow -->
+		<flow-ref name="munit-main" />
+		<!-- End Run flow -->
+		
+		<!-- Assert payload -->
+		<munit:assert-not-null/>
+		<munit:assert-that payloadIs-ref="#['[5, 6, 7, 8] TX_123']"/>
+		<!-- End Assert payload -->
+		
+		<!-- Verify MP calls -->
+		<mock:verify-call messageProcessor="logger" times="#[4]">
+			<mock:attributes>
+                <mock:attribute name="doc:name" whereValue-ref="#['For each logger']"/>
+            </mock:attributes>
+        </mock:verify-call>
+		<!-- End Verify MP calls -->
+	</munit:test>
+	
+	<munit:test name="testThirdBranch" description="Test third branch">
+		
+		<!-- <mock:outbound-endpoint address="http://localhost:8082" returnPayload-ref="#[string:MOCKED OUTBOUND]">
+            <mock:assertions>
+                <munit:assert-that payloadIs-ref="#['other payload']"/>
+            </mock:assertions>
+        </mock:outbound-endpoint> -->		
+		
+		<!-- Set initial payload / variables -->
+		<munit:set payload-ref="#['other payload']">
+			<munit:invocation-properties>
+				<munit:invocation-property key="txId" value-ref="#['TX_123']" />
+			</munit:invocation-properties>
+		</munit:set>
+		<!-- End Set initial payload / variables -->
+		
+		<!-- Run flow -->
+		<flow-ref name="munit-main" />
+		<!-- End Run flow -->
+		
+		<!-- Assert payload -->
+		<munit:assert-not-null/>
+		<!-- <munit:assert-that payloadIs-ref="#['munit-http executed TX_123']"/> -->
+		<munit:assert-that payloadIs-ref="#[string:MOCKED OUTBOUND TX_123]"/>
+		<!-- End Assert payload -->
+		
+	</munit:test>
+
+	<munit:test name="testMockingMessageProcessors" description="Test mock MP">
+		
+		<mock:when messageProcessor="scripting:transformer">
+			<mock:then-return payload-ref="#[groovy:return [1,2,3]]"/>
+		</mock:when>
+		
+		<!-- Set initial payload / variables -->
+		<munit:set payload-ref="#['/second']">
+			<munit:invocation-properties>
+				<munit:invocation-property key="txId" value-ref="#['TX_123']" />
+			</munit:invocation-properties>
+		</munit:set>
+		<!-- End Set initial payload / variables -->
+		
+		<!-- Run flow -->
+		<flow-ref name="munit-main" />
+		<!-- End Run flow -->
+		
+		<!-- Assert payload -->
+		<!-- <munit:assert-that payloadIs-ref="#['[5, 6, 7, 8] TX_123']"/> -->
+		<munit:assert-that payloadIs-ref="#['[1, 2, 3] TX_123']"/>
+		<!-- End Assert payload -->
+		
+	</munit:test>				
+</mule>
