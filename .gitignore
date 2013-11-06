@@ -1,0 +1,20 @@
+*.class
+
+# Package Files #
+*.jar
+*.war
+*.ear
+
+.classpath
+
+.project
+
+*.prefs
+
+.settings/
+
+.studio/
+
+target/
+
+target/classes/munit-lab.xml

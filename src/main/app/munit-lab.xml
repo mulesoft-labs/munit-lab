@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd">
+    <catch-exception-strategy name="Catch_Exception_Strategy">
+        <set-payload value="'ERROR'" doc:name="Set Payload"/>
+        <echo-component doc:name="Echo"/>
+    </catch-exception-strategy>
+    <flow name="munit-main" doc:name="munit-main">
+        <http:inbound-endpoint exchange-pattern="request-response" host="localhost" port="8081" doc:name="HTTP"/>
+        <logger message="#[message]" level="ERROR" category="MESSAGE" doc:name="Logger"/>
+        <choice doc:name="Choice">
+            <when expression="#[payload == '/first' &amp;&amp; message.inboundProperties['http.method']=='GET']">
+                <set-variable variableName="myVar1" value="FIRST" doc:name="set-myvar1"/>
+                <set-payload value="#[payload] #[myVar1]" doc:name="set-first-payload"/>
+            </when>
+            <when expression="#[payload == '/second']">
+                <scripting:transformer  doc:name="set-list-payload">
+	                <scripting:script engine="Groovy">
+                        <scripting:text><![CDATA[return list = [5, 6, 7, 8]]]></scripting:text>
+		       		</scripting:script>
+				</scripting:transformer>
+                <foreach doc:name="For Each">
+                    <logger message="#[payload]" level="ERROR" doc:name="For each logger"/>
+                </foreach>
+            </when>
+            <otherwise>
+                <http:outbound-endpoint exchange-pattern="request-response" host="localhost" port="8082" method="GET" doc:name="HTTP outbound"/>
+            </otherwise>
+        </choice>
+        <object-to-string-transformer mimeType="text/plain" doc:name="Object to String"/>
+        <expression-transformer expression="#[payload + ' ' + flowVars['txId']]" doc:name="append TxId"/>
+        <logger message="#[payload]" level="ERROR" category="FINAL" doc:name="Logger"/>
+        <logger level="ERROR" category="FINAL" doc:name="Logger"/>
+        <echo-component doc:name="Echo"/>
+    </flow>
+    <flow name="munit-http" doc:name="munit-http">
+        <http:inbound-endpoint exchange-pattern="request-response" host="localhost" port="8082" doc:name="HTTP"/>
+        <set-payload value="munit-http executed" doc:name="Set Payload"/>
+    </flow>
+</mule>
